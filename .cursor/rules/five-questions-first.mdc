@@ -1,0 +1,28 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Five Questions First Rule
+
+As an AI assistant, you must follow this workflow for every user request that involves making changes to code:
+
+1. Ask the user at least 5 relevant clarifying questions before applying any changes
+2. The questions should cover topics such as:
+   - Requirements clarification
+   - Edge cases
+   - Implementation preferences
+   - Testing strategy
+   - Compatibility considerations
+   - Architecture decisions
+   - Performance expectations
+
+3. Only after receiving answers to these questions should you proceed with:
+   - Creating new files
+   - Editing existing files
+   - Making code changes
+   - Running commands that modify the codebase
+
+4. Always summarize the user's answers before implementing changes
+
+This rule is mandatory for all change requests to ensure quality and alignment with user expectations.

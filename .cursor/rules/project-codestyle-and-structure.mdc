@@ -1,0 +1,488 @@
+---
+description: Keeps codebase consistent in entire project
+globs:
+alwaysApply: false
+---
+
+# Project Codestyle and Structure Rules
+
+This document outlines the coding standards and architectural patterns that must be followed to ensure consistency across the entire project.
+
+## Type Safety Rules
+
+### 1. No `any` Types Allowed
+
+**Rule:** The use of `any` type is **strictly prohibited** throughout the entire codebase.
+
+**Why this matters:**
+
+- `any` defeats the purpose of TypeScript
+- Makes code impossible to debug effectively
+- Prevents IDE intellisense and autocomplete
+- Allows runtime errors that TypeScript should catch
+- Makes code maintenance extremely difficult
+
+**What to do instead:**
+
+- Always declare explicit types for parameters, return values, and variables
+- If you don't know the correct type, **ASK** where to find it:
+  - For HTTP requests: Ask where the API response type is documented
+  - For external services: Ask for the service's type definitions
+  - For database models: Ask where the schema types are defined
+  - For component props: Ask for the expected data structure
+
+**Examples:**
+
+```tsx
+// ❌ Incorrect - Using any types (Current problematic code)
+async translateLocalization(
+  organizationId: string,
+  taskData: any  // ❌ No type information
+): Promise<any> {  // ❌ No return type information
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(taskData),
+  });
+
+  return await response.json(); // ❌ Unknown return type
+}
+
+// ✅ Correct - Properly typed (What should be implemented)
+interface LocalizationTaskData {
+  sourceLanguage: string;
+  targetLanguage: string;
+  content: string;
+  glossaryId?: string;
+}
+
+interface LocalizationResponse {
+  taskId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  estimatedDuration: number;
+  result?: {
+    translatedContent: string;
+    confidence: number;
+  };
+}
+
+async translateLocalization(
+  organizationId: string,
+  taskData: LocalizationTaskData
+): Promise<LocalizationResponse> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(taskData),
+  });
+
+  if (!response.ok) {
+    throw new ApplicationError(`Translation service error: ${response.statusText}`);
+  }
+
+  return await response.json() as LocalizationResponse;
+}
+
+// ✅ Alternative - If types need to be discovered, ask questions:
+// "Where can I find the type definition for the localization API response?"
+// "What's the expected structure of taskData for the translation service?"
+// "Is there documentation for the external translation service types?"
+```
+
+**When you encounter missing types:**
+
+1. **Stop** - Don't use `any` as a temporary solution
+2. **Ask** - Request information about where to find the proper types:
+   - "Where is the API endpoint documented? What's the response schema?"
+   - "Where are the database model types defined?"
+   - "Is there a types file for this service? What's the expected interface?"
+   - "What data structure should this component expect?"
+   - "What fields are required/optional in this form?"
+
+## Component Development Rules
+
+### 1. Props Destructuring Pattern
+
+**Interface Declaration:**
+
+- Props interface must be created in the component file above the component declaration
+- Use descriptive interface names ending with `Props`
+
+**Destructuring Rules:**
+
+- **Default:** Do NOT destructure props at function parameters level
+- **Access:** Use `props.propertyName` for accessing properties
+- **Exception:** Destructure inside component function only when:
+  - All properties are being referenced inside the component, OR
+  - A single property is being referenced more than 2 times
+
+```tsx
+// ✅ Correct - Interface above component
+interface UserCardProps {
+  user: User;
+  onEdit: (id: string) => void;
+  showDetails: boolean;
+}
+
+// ✅ Correct - No destructuring, single usage
+function UserCard(props: UserCardProps) {
+  return <div>{props.user.name}</div>;
+}
+
+// ✅ Correct - Destructuring inside when multiple usage
+function UserCard(props: UserCardProps) {
+  const { user, onEdit, showDetails } = props;
+
+  return (
+    <div>
+      <h3>{user.name}</h3>
+      <p>{user.email}</p>
+      {showDetails ? <UserDetails user={user} /> : null}
+      <button onClick={() => onEdit(user.id)}>Edit</button>
+    </div>
+  );
+}
+
+// ❌ Incorrect - Destructuring at parameter level
+function UserCard({ user, onEdit, showDetails }: UserCardProps) {
+  // ...
+}
+```
+
+### 2. Component Registration
+
+Functions that return JSX components must be registered as React components, not as functions inside components.
+
+```tsx
+// ✅ Correct - Component registered properly
+function UserCard(props: UserCardProps) {
+  return <div>{props.user.name}</div>;
+}
+
+// ❌ Incorrect - Function inside component
+function Dashboard() {
+  const renderUserCard = () => <div>User</div>; // Should be separate component
+  return <div>{renderUserCard()}</div>;
+}
+```
+
+### 3. Component Usage Priority
+
+When generating new JSX code:
+
+1. **First Priority:** Check if existing components in `@/components` directory can be used
+2. **Reuse:** Always prefer existing components over creating new ones
+3. **Discovery:** Explore the components directory structure before implementing new functionality
+
+### 4. Component Modification Rules
+
+**Modifiable:**
+
+- Components in `@/components` directory (except `@/components/ui`)
+- Can be enhanced for better usability without breaking existing functionality
+
+**Protected:**
+
+- Components in `@/components/ui` directory
+- **DO NOT** modify these components
+- If UI components need enhancement, create wrapper components or extend through composition
+
+```tsx
+// ✅ Correct - Extending UI component through composition
+function EnhancedButton(props: EnhancedButtonProps) {
+  return (
+    <div className="enhanced-button-wrapper">
+      <Button {...props.buttonProps}>
+        {props.icon && <Icon name={props.icon} />}
+        {props.children}
+      </Button>
+    </div>
+  );
+}
+
+// ❌ Incorrect - Modifying UI component directly
+// Don't edit @/components/ui/button.tsx
+```
+
+## JSX Return Rules
+
+### 5. Single Return Statement (React Components Only)
+
+**Scope:** This rule applies **ONLY to React components** that return JSX.
+
+**Excluded from this rule:**
+
+- Next.js route handlers (API routes)
+- Server actions
+- Utility functions
+- Service methods
+- Any non-component functions
+
+**Rule:** Only one return statement for JSX per React component
+
+**Conditional Rendering:**
+
+- Use ternary operators (maximum 2 layers with `?` + `:`)
+- Prefer logical AND (`&&`) for simple conditional rendering
+
+**Exceptions:**
+
+- Single switch case usage without JSX return after it
+- One-line error returns
+- If more complex logic needed, extract to separate function or component
+
+```tsx
+// ✅ Correct - Single return with ternary (React Component)
+function UserStatus(props: UserStatusProps) {
+  return (
+    <div>
+      {props.user.isActive ? (
+        props.user.isPremium ? (
+          <PremiumBadge />
+        ) : (
+          <StandardBadge />
+        )
+      ) : (
+        <InactiveBadge />
+      )}
+    </div>
+  );
+}
+
+// ✅ Correct - Exception: Early error return (React Component)
+function UserProfile(props: UserProfileProps) {
+  if (!props.user) return <div>User not found</div>;
+
+  return <div>{props.user.name}</div>;
+}
+
+// ✅ Correct - Exception: Switch case (React Component)
+function StatusIcon(props: StatusIconProps) {
+  switch (props.status) {
+    case "active":
+      return <CheckIcon />;
+    case "inactive":
+      return <XIcon />;
+    default:
+      return <QuestionIcon />;
+  }
+}
+
+// ✅ Correct - Route handlers can have multiple returns (NOT a React Component)
+export async function POST(request: Request) {
+  try {
+    const data = await request.json();
+
+    if (!data.userId) {
+      return Response.json({ error: "User ID required" }, { status: 400 });
+    }
+
+    if (!data.permission) {
+      return Response.json({ error: "Permission required" }, { status: 403 });
+    }
+
+    const result = await processUser(data);
+    return Response.json(result);
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// ❌ Incorrect - Multiple JSX returns (React Component)
+function UserCard(props: UserCardProps) {
+  if (props.loading) {
+    return <LoadingSpinner />; // Should be ternary in main return
+  }
+
+  return <div>{props.user.name}</div>;
+}
+```
+
+## Control Flow Rules
+
+### 6. Early Returns
+
+**Prefer early returns** for better readability and reduced nesting:
+
+```tsx
+// ✅ Correct - Early return pattern
+function processUser(user: User) {
+  if (!user) return;
+  if (!user.isActive) return;
+  if (!user.hasPermission) return;
+
+  // Main logic here
+  doSomething();
+}
+
+// ✅ Correct - Avoid else when possible
+function getUserStatus(user: User) {
+  if (!user.isActive) return "inactive";
+
+  return "active";
+}
+
+// ❌ Incorrect - Nested conditions
+function processUser(user: User) {
+  if (user) {
+    if (user.isActive) {
+      if (user.hasPermission) {
+        doSomething();
+      }
+    }
+  }
+}
+
+// ❌ Incorrect - Unnecessary else
+function getUserStatus(user: User) {
+  if (!user.isActive) {
+    return "inactive";
+  } else {
+    return "active";
+  }
+}
+```
+
+### 7. If/Else Statement Limitations
+
+**Maximum 2 layers** of if/else statements. For more complex logic, extract to separate functions or use switch statements.
+
+```tsx
+// ✅ Correct - 2 layers maximum
+function calculateDiscount(user: User, product: Product) {
+  if (user.isPremium) {
+    if (product.category === "electronics") {
+      return 0.2;
+    }
+    return 0.1;
+  }
+  return 0;
+}
+
+// ❌ Incorrect - Too many nested layers
+function calculateDiscount(user: User, product: Product) {
+  if (user.isPremium) {
+    if (product.category === "electronics") {
+      if (product.price > 1000) {
+        if (user.loyaltyPoints > 500) {
+          return 0.3; // 4 layers - too deep
+        }
+      }
+    }
+  }
+  return 0;
+}
+```
+
+## Project Architecture
+
+### 8. Communication Patterns
+
+**@api Directory (Public API)**
+
+- Purpose: Public access endpoints for external clients
+- Responsibility: Request validation and routing to services
+- Security: Must be safe for public access
+- Pattern: Validate → Call Service → Return Result
+
+```tsx
+// ✅ API Route Example
+export async function POST(request: Request) {
+  try {
+    // 1. Validate request
+    const formData = await request.formData();
+
+    // 2. Call service method
+    const translationService = new TranslationService(
+      new LanguagesService(),
+      new HistoryService()
+    );
+    const result = await translationService.translate(organizationId, formData);
+
+    // 3. Return service result in same type
+    return Response.json(result);
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+}
+```
+
+**@services Directory (Business Logic)**
+
+- Purpose: Encapsulate business logic and external communications
+- Database: Handle all database operations
+- External APIs: Use `ExternalServicesClient` for microservice communication
+- Pattern: Business Logic → External Services → Database Operations
+
+```tsx
+// ✅ Service Example (from translation-service.ts)
+export class TranslationService {
+  async translate(
+    organizationId: string,
+    formData: FormData
+  ): Promise<TranslationResult> {
+    // 1. Validation
+    this.languagesService.validateLanguages(
+      data.sourceLanguage,
+      data.targetLanguage
+    );
+
+    // 2. External service communication
+    const client = new ExternalServicesClient();
+    const result = await client.translation.translate(organizationId, formData);
+
+    // 3. Database operations
+    await this.historyService.writeTranslationHistory(
+      organizationId,
+      translationData
+    );
+
+    return result;
+  }
+}
+```
+
+**@actions Directory (Server Actions)**
+
+- Purpose: Server actions for use in client and server components
+- Pattern: Same as API routes but for internal application use
+- Flow: Validate → Call Service → Return Result
+
+**External Service Communication**
+
+- All microservice communication must go through `ExternalServicesClient`
+- Located in `@/server/services/external-services/external-services-client.ts`
+- Services should call methods from this client, not direct HTTP calls
+
+### 9. Constants Management
+
+**Global Constants Location:** `@/lib/constants.ts`
+
+All project-wide constant values must be registered in this file:
+
+```tsx
+// ✅ Correct - Constants in dedicated file
+export abstract class Constants {
+  static APP_NAME = "Algebras";
+  static COOKIE_PREFIX = "algb";
+  static PERSONAL_ORG_NAME = "Personal";
+}
+
+export abstract class Limits {
+  static MAX_ORGS_PER_USER = 10;
+  static MAX_API_KEYS_PER_ORG = 25;
+}
+```
+
+## Summary
+
+These rules ensure:
+
+- **Consistency** across all generated code
+- **Maintainability** through clear patterns
+- **Reusability** of existing components
+- **Security** in public API endpoints
+- **Separation of concerns** between API, actions, and services
+- **Proper architecture** for scalable development
+
+When generating new code, always reference these rules to maintain project consistency and quality.

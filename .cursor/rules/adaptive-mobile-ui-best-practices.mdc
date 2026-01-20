@@ -1,0 +1,65 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Adaptive/Mobile UI Best Practices
+
+## Viewport Configuration
+- Always include a proper viewport meta tag in the layout to ensure mobile responsiveness:
+  ```html
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+  ```
+
+## Container and Width Management
+- Use responsive max-width constraints to prevent horizontal overflow:
+  ```jsx
+  <div className="max-w-[100vw] sm:max-w-screen-2xl">
+  ```
+- For nested content, calculate available space using viewport units:
+  ```jsx
+  <div className="max-w-[calc(100vw-8px)]">
+  ```
+- Apply `overflow-hidden` to parent containers and `overflow-x-auto` to scrollable content
+
+## Text and Code Blocks
+- Use `break-all` for long text on mobile, with normal breaks on larger screens:
+  ```jsx
+  <code className="break-all sm:break-normal">
+  ```
+- For code blocks, limit width based on available space and enable horizontal scrolling:
+  ```jsx
+  <pre className="overflow-x-auto max-w-[calc(100vw-3rem)]">
+  ```
+
+## Responsive Spacing
+- Use smaller padding on mobile and larger on desktop:
+  ```jsx
+  <div className="p-2 sm:p-4">
+  ```
+- Remember that our pattern is `{property}-{small value} sm:{property}-{larger value}`
+- Standard mobile padding is 1px-2px, desktop is 4px-6px
+
+## Flex Direction
+- Stack elements vertically on mobile, horizontally on desktop:
+  ```jsx
+  <div className="flex flex-col sm:flex-row">
+  ```
+- Adjust alignment accordingly:
+  ```jsx
+  <div className="items-start sm:items-center">
+  ```
+
+## Typography
+- Use smaller text on mobile:
+  ```jsx
+  <p className="text-xs sm:text-sm">
+  ```
+  ```jsx
+  <h1 className="text-xl sm:text-2xl">
+  ```
+
+## Testing
+- Always test designs on mobile devices and browsers
+- Pay special attention to horizontal overflow issues
+- Check both portrait and landscape orientations
